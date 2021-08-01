@@ -198,27 +198,26 @@ class HTTPConcurrentPoll(HTTPPoll):
         self._queue: Optional[Queue] = None
 
     async def _poll_address(self, address: str, header=None):
-        try:
-            while True:
-                data = await self._read_address(address, header)
-                await asyncio.gather(self._queue.put(data), asyncio.sleep(self.sleep))
-        except Exception as e:
-            await self._queue.put(e)
+        while True:
+            data = await self._read_address(address, header)
+            await asyncio.gather(self._queue.put(data), asyncio.sleep(self.sleep))
 
     async def read(self, header=None) -> AsyncIterable[str]:
-        if self._queue:
+        if self._queue is not None:
             raise ConnectionExists('Only one reader allowed per poll')
 
         self._queue = Queue()
 
-        for address in self.address:
-            create_task(self._poll_address(address, header))
+        tasks = asyncio.gather(*(self._poll_address(address, header)for address in self.address))
 
-        while True:
+        while not tasks.done():
             data = await self._queue.get()
-            if isinstance(data, Exception):
-                raise data
             yield data
+
+        self._queue = None
+
+        if exception := tasks.exception():
+            raise exception
 
 
 class WSAsyncConn(AsyncConnection):
