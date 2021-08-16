@@ -256,14 +256,7 @@ class Binance(Feed, BinanceRestMixin):
         return skip_update, forced, current_match
 
     async def _snapshot(self, pair: str) -> None:
-        max_depth = self.max_depth if self.max_depth else self.valid_depths[-1]
-        if max_depth not in self.valid_depths:
-            for d in self.valid_depths:
-                if d > max_depth:
-                    max_depth = d
-                    break
-
-        url = f'{self.rest_endpoint}/depth?symbol={pair}&limit={max_depth}'
+        url = f'{self.rest_endpoint}/depth?symbol={pair}&limit={max(self.valid_depths)}'
         resp = await self.http_conn.read(url)
         resp = json.loads(resp, parse_float=Decimal)
 
